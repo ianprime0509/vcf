@@ -83,7 +83,18 @@ func run(w io.Writer, r io.Reader, format, search string) error {
 
 // matchesSearch returns whether the given vCard matches the given search query.
 func matchesSearch(card *vcard.Card, search string) bool {
-	return true
+	// TODO: expand to something other than just name.
+	search = strings.ToUpper(search)
+	names := card.Get("FN")
+	for _, prop := range names {
+		for _, name := range prop.Values() {
+			name = strings.ToUpper(name)
+			if strings.Contains(name, search) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // formatCard formats the given vCard according to a format string.
