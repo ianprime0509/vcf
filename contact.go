@@ -112,7 +112,8 @@ func formatCard(w io.Writer, card *vcard.Card, format string) error {
 	out := make([]*bytes.Buffer, 1)
 	out[0] = new(bytes.Buffer)
 
-	inFormat := false // whether we're processing a formatting directive
+	inFormat := false    // whether we're processing a formatting directive
+	modifier := rune(-1) // the modifier for this formatting directive
 	for _, r := range format {
 		if r == '%' {
 			if inFormat {
@@ -122,33 +123,23 @@ func formatCard(w io.Writer, card *vcard.Card, format string) error {
 				inFormat = false
 			} else {
 				inFormat = true
+				modifier = -1
 			}
 		} else if inFormat {
+			if r == '+' {
+				if modifier != -1 {
+					return fmt.Errorf("already using modifier %q", modifier)
+				}
+				modifier = r
+				continue
+			}
 			field, ok := formatFields[r]
 			if !ok {
 				return fmt.Errorf("unknown formatting directive %q", r)
 			}
-			props := card.Get(field)
 
-			// Handle possible copies first.
-			oldOut := out
-			if len(props) > 1 {
-				for _, prop := range props[1:] {
-					for _, ob := range oldOut {
-						bs := make([]byte, ob.Len())
-						copy(bs, ob.Bytes())
-						nb := bytes.NewBuffer(bs)
-						// TODO: figure out a better way to handle multiple values.
-						nb.WriteString(strings.Join(prop.Values(), ","))
-						out = append(out, nb)
-					}
-				}
-			}
-			if len(props) > 0 {
-				for _, b := range out[:len(oldOut)] {
-					b.WriteString(strings.Join(props[0].Values(), ","))
-				}
-			}
+			props := card.Get(field)
+			appendProps(&out, props, modifier)
 
 			inFormat = false
 		} else {
@@ -166,4 +157,57 @@ func formatCard(w io.Writer, card *vcard.Card, format string) error {
 		fmt.Fprintln(w, b)
 	}
 	return nil
+}
+
+// appendProps appends the given properties to all the buffers in the given
+// slice, creating new buffers if necessary such that the result is the Cartesian
+// product of the previous buffers and the given properties.
+func appendProps(bufs *[]*bytes.Buffer, props []vcard.Property, mod rune) {
+	// Handle possible copies first.
+	oldBufs := *bufs
+	if len(props) > 1 {
+		for _, prop := range props[1:] {
+			for _, ob := range oldBufs {
+				bs := make([]byte, ob.Len())
+				copy(bs, ob.Bytes())
+				nb := bytes.NewBuffer(bs)
+				// TODO: figure out a better way to handle multiple values.
+				nb.WriteString(formatProp(prop, mod))
+				*bufs = append(*bufs, nb)
+			}
+		}
+	}
+	if len(props) > 0 {
+		for _, b := range (*bufs)[:len(oldBufs)] {
+			b.WriteString(formatProp(props[0], mod))
+		}
+	}
+}
+
+// formatProp formats the given property, taking into account the given
+// formatting modifier.
+func formatProp(prop vcard.Property, mod rune) string {
+	base := strings.Join(prop.Values(), ",")
+	if mod == '+' {
+		return quoteCSV(base)
+	}
+	return base
+}
+
+// quoteCSV quotes the given string according to CSV quoting rules. This means
+// that the string will be surrounded with double quotes, and any double quotes
+// present in the string will be doubled (to disambiguate them from the
+// surrounding quotes).
+func quoteCSV(s string) string {
+	sb := new(strings.Builder)
+	sb.WriteRune('"')
+	for _, r := range s {
+		if r == '"' {
+			sb.WriteString("\"\"")
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	sb.WriteRune('"')
+	return sb.String()
 }
