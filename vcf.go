@@ -27,15 +27,12 @@ var formatFields = map[rune]string{
 }
 
 var (
-	all    *bool
-	format *string
-	input  *string
+	all    = flag.Bool("a", false, "include even entries with empty fields")
+	format = flag.String("f", defaultFormat, "set the output format")
+	input  = flag.String("i", defaultInput, "set the input file (- for stdin)")
 )
 
 func init() {
-	all = flag.Bool("a", false, "include even entries with empty fields")
-	format = flag.String("f", defaultFormat, "set the output format")
-	input = flag.String("i", defaultInput, "set the input file (- for stdin)")
 	flag.Parse()
 }
 
