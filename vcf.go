@@ -27,11 +27,13 @@ var formatFields = map[rune]string{
 }
 
 var (
+	all    *bool
 	format *string
 	input  *string
 )
 
 func init() {
+	all = flag.Bool("a", false, "include even entries with empty fields")
 	format = flag.String("f", defaultFormat, "set the output format")
 	input = flag.String("i", defaultInput, "set the input file (- for stdin)")
 	flag.Parse()
@@ -52,7 +54,7 @@ func main() {
 	}
 
 	search := strings.Join(flag.Args(), " ")
-	err := run(os.Stdout, inputFile, *format, search)
+	err := run(os.Stdout, inputFile, search)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vcf: %v\n", err)
 		os.Exit(1)
@@ -60,14 +62,14 @@ func main() {
 }
 
 // run executes the main program logic (reading, formatting and writing output)
-// using the given reader, format string, search string and writer.
-func run(w io.Writer, r io.Reader, format, search string) error {
+// using the given writer, reader and search query.
+func run(w io.Writer, r io.Reader, search string) error {
 	p := vcard.NewParser(bufio.NewReader(r))
 
 	card, err := p.Next()
 	for err == nil {
 		if matchesSearch(card, search) {
-			err := formatCard(w, card, format)
+			err := formatCard(w, card)
 			if err != nil {
 				return err
 			}
@@ -97,8 +99,10 @@ func matchesSearch(card *vcard.Card, search string) bool {
 	return false
 }
 
-// formatCard formats the given vCard according to a format string.
-func formatCard(w io.Writer, card *vcard.Card, format string) error {
+// formatCard formats the given vCard according to the format string specified
+// in the command-line arguments, also taking into account other options such
+// as "-a".
+func formatCard(w io.Writer, card *vcard.Card) error {
 	// In order to handle cards that may have more than one of each field,
 	// we need to maintain several strings, which will become the lines of
 	// the output. Every time we get a field repeated n times, we need to
@@ -114,7 +118,7 @@ func formatCard(w io.Writer, card *vcard.Card, format string) error {
 
 	inFormat := false    // whether we're processing a formatting directive
 	modifier := rune(-1) // the modifier for this formatting directive
-	for _, r := range format {
+	for _, r := range *format {
 		if r == '%' {
 			if inFormat {
 				for _, b := range out {
@@ -139,6 +143,11 @@ func formatCard(w io.Writer, card *vcard.Card, format string) error {
 			}
 
 			props := card.Get(field)
+			if len(props) == 0 && !*all {
+				// Break out of the function early without
+				// printing anything for this card.
+				return nil
+			}
 			appendProps(&out, props, modifier)
 
 			inFormat = false
