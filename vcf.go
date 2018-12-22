@@ -45,7 +45,7 @@ func main() {
 		var err error
 		inputFile, err = os.Open(*input)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "contact: could not open input file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "vcf: could not open input file: %v\n", err)
 			os.Exit(1)
 		}
 		defer inputFile.Close()
@@ -54,7 +54,7 @@ func main() {
 	search := strings.Join(flag.Args(), " ")
 	err := run(os.Stdout, inputFile, *format, search)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "contact: %v\n", err)
+		fmt.Fprintf(os.Stderr, "vcf: %v\n", err)
 		os.Exit(1)
 	}
 }
