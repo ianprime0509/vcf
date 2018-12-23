@@ -26,6 +26,15 @@ var formatFields = map[rune]string{
 	'p': "TEL",
 }
 
+// escapeChars is a map of escape characters (runes) to the corresponding
+// escaped rune.
+var escapeChars = map[rune]rune{
+	'\\': '\\',
+	'0':  '\000',
+	'n':  '\n',
+	't':  '\t',
+}
+
 var (
 	all    = flag.Bool("a", false, "include even entries with empty fields")
 	format = flag.String("f", defaultFormat, "set the output format")
@@ -61,6 +70,7 @@ func main() {
 // run executes the main program logic (reading, formatting and writing output)
 // using the given writer, reader and search query.
 func run(w io.Writer, r io.Reader, search string) error {
+	*format = unescape(*format)
 	p := vcard.NewParser(bufio.NewReader(r))
 
 	card, err := p.Next()
@@ -163,6 +173,30 @@ func formatCard(w io.Writer, card *vcard.Card) error {
 		fmt.Fprintln(w, b)
 	}
 	return nil
+}
+
+// unescape transforms escaped characters in the given string to their unescaped
+// forms. Unknown escape characters result in themselves (e.g. "\s" becomes "s"),
+// and a trailing backslash is lost (e.g. "hello\" becomes "hello").
+func unescape(s string) string {
+	sb := new(strings.Builder)
+	inEscape := false
+	for _, r := range s {
+		if r == '\\' && !inEscape {
+			inEscape = true
+		} else if inEscape {
+			unescaped, ok := escapeChars[r]
+			if !ok {
+				sb.WriteRune(r)
+			} else {
+				sb.WriteRune(unescaped)
+			}
+			inEscape = false
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
 
 // appendProps appends the given properties to all the buffers in the given
