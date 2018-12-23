@@ -26,6 +26,25 @@ var formatFields = map[rune]string{
 	'p': "TEL",
 }
 
+// formatField is a Value allowing formatting directives to be added via
+// command-line options.
+type formatField struct{}
+
+func (formatField) String() string {
+	return fmt.Sprintf("%v", formatFields)
+}
+
+func (formatField) Set(arg string) error {
+	for _, field := range strings.Split(arg, ",") {
+		parts := strings.Split(field, "=")
+		if len(parts) != 2 || len(parts[0]) != 1 {
+			return fmt.Errorf("%q is not of the format RUNE=FIELD", field)
+		}
+		formatFields[[]rune(parts[0])[0]] = parts[1]
+	}
+	return nil
+}
+
 // escapeChars is a map of escape characters (runes) to the corresponding
 // escaped rune.
 var escapeChars = map[rune]rune{
@@ -42,6 +61,7 @@ var (
 )
 
 func init() {
+	flag.Var(formatField{}, "d", "define a formatting directive")
 	flag.Parse()
 }
 
