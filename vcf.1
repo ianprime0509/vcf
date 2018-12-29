@@ -1,0 +1,136 @@
+.Dd December 23, 2018
+.Dt VCF 1
+.Os
+.Sh NAME
+.Nm vcf
+.Nd search and format vCard data
+.Sh SYNOPSIS
+.Nm
+.Op Fl a
+.Op Fl d Ar rune=field , Ns ...
+.Op Fl f Ar format
+.Op Fl i Ar input
+.Ar search
+.Sh DESCRIPTION
+.Nm
+is a tool for searching and formatting vCard data.
+For example, it can be used to find a person's email from a vCard contact file
+containing many contacts.
+The search query is provided through the
+.Ar search
+argument; the current implementation only allows searches by name, but this is
+intended to change.
+The options are as follows:
+.Bl -tag -width 6n
+.It Fl a
+Include all matches for the search query in the response, even those that did
+not have values for all fields in the format string.
+.It Fl d Ar rune=field , Ns ...
+Associate the formatting directive
+.Ar rune ,
+a single rune (Unicode codepoint), with the vCard field
+.Ar field .
+.It Fl f Ar format
+Format the output according to the format string
+.Ar format .
+The default is
+.Sy %n <%e> .
+.It Fl i Ar input
+Read vCard data from
+.Ar input .
+If
+.Ar input
+is the special value
+.Sy - ,
+then read from standard input (the default).
+.El
+.Ss FORMAT STRINGS
+The format of the output produced by
+.Nm
+can be specified through a format string passed to the
+.Fl f
+option.
+The format string
+.Dq language
+is similar in spirit to the one understood by
+.Xr date 1 :
+characters in the format string are represented literally in the output, unless
+they are
+.Em formatting directives ,
+preceded by a single
+.Sy % ,
+or
+.Em escape codes ,
+preceded by a single
+.Sy \ .
+.Pp
+Each escape code produces a single character in the resulting output.
+The available escape codes are as follows:
+.Bl -tag -width 6n
+.It \
+.Sy \ ,
+a backslash
+.It 0
+the
+.Sy NUL
+character (Unicode
+.Sy U+0000 )
+.It n
+the line feed character (newline)
+.It t
+the tab character
+.El
+.Pp
+Each formatting directive (except for
+.Sy % )
+results in the contents of a vCard field being added to the output.
+When the
+.Fl a
+flag is provided, an empty or non-existent field will be formatted as an empty
+string; without
+.Fl a ,
+the entire vCard will be ignored.
+The built-in formatting directives are as follows:
+.Bl -tag -width 6n
+.It %
+a literal percent sign
+.Sy %
+.It e
+the vCard field
+.Sy EMAIL
+.It n
+the vCard field
+.Sy FN
+(formatted name)
+.It p
+the vCard field
+.Sy PHONE
+.El
+.Pp
+New formatting directives can be specified using the
+.Fl d Ar rune=field , Ns ...
+option, associating
+.Ar rune
+with the vCard field
+.Ar field .
+Several comma-separated associations can be specified with one directive, or
+the option can be given several times.
+.Sh EXAMPLES
+.Bl -tag -width 6n
+.It Nm Fl a Fl i Ar contacts.vcf Ar john smith
+Print all entries for anyone named
+.Dq John Smith
+in the file
+.Ar contacts.vcf
+in the format
+.Sy NAME <EMAIL> ,
+even those that do not have an email.
+.It Nm Fl d Ar a=ADR Fl f Ar '%n,%a' Ar jane doe
+Using the vCard data supplied through the standard input, print all entries for
+anyone named
+.Dq Jane Doe
+having a non-empty address (vCard field
+.Sy ADR )
+in the format
+.Sy NAME,ADDRESS .
+.El
