@@ -62,6 +62,24 @@ func (formatField) Set(arg string) error {
 	return nil
 }
 
+// searchFields is a list of vCard fields to search for the user's search terms.
+var searchFields = []string{"FN"}
+
+// searchField is a Value allowing search fields to be added via command-line
+// options.
+type searchField struct{}
+
+func (searchField) String() string {
+	return fmt.Sprintf("%v", searchFields)
+}
+
+func (searchField) Set(arg string) error {
+	for _, field := range strings.Split(arg, ",") {
+		searchFields = append(searchFields, field)
+	}
+	return nil
+}
+
 // escapeChars is a map of escape characters (runes) to the corresponding
 // escaped rune.
 var escapeChars = map[rune]rune{
@@ -79,6 +97,7 @@ var (
 
 func init() {
 	flag.Var(formatField{}, "d", "define a formatting directive")
+	flag.Var(searchField{}, "s", "add a new field to be searched")
 	flag.Parse()
 }
 
@@ -96,8 +115,7 @@ func main() {
 		defer inputFile.Close()
 	}
 
-	search := strings.Join(flag.Args(), " ")
-	err := run(os.Stdout, inputFile, search)
+	err := run(os.Stdout, inputFile, flag.Args())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "vcf: %v\n", err)
 		os.Exit(1)
@@ -105,8 +123,8 @@ func main() {
 }
 
 // run executes the main program logic (reading, formatting and writing output)
-// using the given writer, reader and search query.
-func run(w io.Writer, r io.Reader, search string) error {
+// using the given writer, reader and search terms.
+func run(w io.Writer, r io.Reader, search []string) error {
 	*format = unescape(*format)
 	p := vcard.NewParser(bufio.NewReader(r))
 
@@ -127,20 +145,26 @@ func run(w io.Writer, r io.Reader, search string) error {
 	return nil
 }
 
-// matchesSearch returns whether the given vCard matches the given search query.
-func matchesSearch(card *vcard.Card, search string) bool {
-	// TODO: expand to something other than just name.
-	search = strings.ToUpper(search)
-	names := card.Get("FN")
-	for _, prop := range names {
-		for _, name := range prop.Values() {
-			name = strings.ToUpper(name)
-			if strings.Contains(name, search) {
-				return true
+// matchesSearch returns whether the given vCard matches the given search terms.
+func matchesSearch(card *vcard.Card, search []string) bool {
+	for _, term := range search {
+		term = strings.ToUpper(term)
+		for _, field := range searchFields {
+			props := card.Get(field)
+			for _, prop := range props {
+				for _, value := range prop.Values() {
+					value = strings.ToUpper(value)
+					if strings.Contains(value, term) {
+						goto nextTerm
+					}
+				}
 			}
 		}
+		// We got through all available field values and none matched.
+		return false
+	nextTerm:
 	}
-	return false
+	return true
 }
 
 // formatCard formats the given vCard according to the format string specified

@@ -10,16 +10,23 @@
 .Op Fl d Ar rune=field , Ns ...
 .Op Fl f Ar format
 .Op Fl i Ar input
-.Ar search
+.Op Fl s Ar field , Ns ...
+.Ar term , Ns ...
 .Sh DESCRIPTION
 .Nm
 is a tool for searching and formatting vCard data.
 For example, it can be used to find a person's email from a vCard contact file
 containing many contacts.
 The search query is provided through the
-.Ar search
-argument; the current implementation only allows searches by name, but this is
-intended to change.
+.Ar term , Ns ...
+argument, specifying several search terms.
+A vCard is considered a match for the search query if every term
+appears at least once in the fields under consideration (see the
+.Op Fl s
+option; by default, this is only name), and by default a vCard will
+only be output if it contains all the fields specified in the format string
+(this can be overridden using
+.Op Fl a ) .
 The options are as follows:
 .Bl -tag -width 6n
 .It Fl a
@@ -43,6 +50,12 @@ If
 is the special value
 .Sy - ,
 then read from standard input (the default).
+.It Fl s Ar field , Ns ...
+Add the given fields to the list of fields to be searched for the
+search terms.
+By default, only the field
+.Sy FN
+is searched.
 .El
 .Ss FORMAT STRINGS
 The format of the output produced by
@@ -54,21 +67,21 @@ The format string
 .Dq language
 is similar in spirit to the one understood by
 .Xr date 1 :
-characters in the format string are represented literally in the output, unless
-they are
+characters in the format string are represented literally in the
+output, unless they are
 .Em formatting directives ,
 preceded by a single
 .Sy % ,
 or
 .Em escape codes ,
 preceded by a single
-.Sy \ .
+.Sy \e .
 .Pp
 Each escape code produces a single character in the resulting output.
 The available escape codes are as follows:
 .Bl -tag -width 6n
-.It \
-.Sy \ ,
+.It \e
+.Sy \e ,
 a backslash
 .It 0
 the
@@ -86,8 +99,8 @@ Each formatting directive (except for
 results in the contents of a vCard field being added to the output.
 When the
 .Fl a
-flag is provided, an empty or non-existent field will be formatted as an empty
-string; without
+flag is provided, an empty or non-existent field will be formatted as
+an empty string; without
 .Fl a ,
 the entire vCard will be ignored.
 The built-in formatting directives are as follows:
@@ -113,8 +126,8 @@ option, associating
 .Ar rune
 with the vCard field
 .Ar field .
-Several comma-separated associations can be specified with one directive, or
-the option can be given several times.
+Several comma-separated associations can be specified with one
+directive, or the option can be given several times.
 .Sh EXAMPLES
 .Bl -tag -width 6n
 .It Nm Fl a Fl i Ar contacts.vcf Ar john smith
@@ -126,8 +139,8 @@ in the format
 .Sy NAME <EMAIL> ,
 even those that do not have an email.
 .It Nm Fl d Ar a=ADR Fl f Ar '%n,%a' Ar jane doe
-Using the vCard data supplied through the standard input, print all entries for
-anyone named
+Using the vCard data supplied through the standard input, print all
+entries for anyone named
 .Dq Jane Doe
 having a non-empty address (vCard field
 .Sy ADR )
