@@ -6,27 +6,23 @@
 .Nd search and format vCard data
 .Sh SYNOPSIS
 .Nm
-.Op Fl a
+.Op Fl aS
 .Op Fl d Ar rune=field , Ns ...
 .Op Fl f Ar format
 .Op Fl i Ar input
 .Op Fl s Ar field , Ns ...
-.Ar term , Ns ...
+.Op Ar term Ns ...
 .Sh DESCRIPTION
 .Nm
 is a tool for searching and formatting vCard data.
 For example, it can be used to find a person's email from a vCard contact file
 containing many contacts.
 The search query is provided through the
-.Ar term , Ns ...
+.Ar term Ns ...
 argument, specifying several search terms.
-A vCard is considered a match for the search query if every term
-appears at least once in the fields under consideration (see the
-.Op Fl s
-option; by default, this is only name), and by default a vCard will
-only be output if it contains all the fields specified in the format string
-(this can be overridden using
-.Op Fl a ) .
+The search behavior can be customized in several ways; for a detailed
+description, see
+.Xr SEARCHING .
 The options are as follows:
 .Bl -tag -width 6n
 .It Fl a
@@ -53,9 +49,18 @@ then read from standard input (the default).
 .It Fl s Ar field , Ns ...
 Add the given fields to the list of fields to be searched for the
 search terms.
+A field name suffixed by
+.Sy \&!
+will force any value of that field to match the search query if it is to be
+output (the field
+.Dq must match ) .
+For details on what this means, see
+.Xr SEARCHING .
 By default, only the field
 .Sy FN
-is searched.
+is searched (at the default
+.Dq might match
+level).
 .El
 .Ss FORMAT STRINGS
 The format of the output produced by
@@ -128,6 +133,113 @@ with the vCard field
 .Ar field .
 Several comma-separated associations can be specified with one
 directive, or the option can be given several times.
+.Ss SEARCHING
+Zero or more search terms can be provided to
+.Nm
+via the
+.Ar term Ns ...
+argument.
+The
+.Fl s Ar field , Ns ...
+option is used to specify the fields that should be searched for these terms (the
+.Em search fields ) .
+As a special case, if no search terms are provided, no filtering is performed
+(every vCard in the input will be formatted and output, provided that it
+contains all the fields requested to be formatted or the
+.Fl a
+option is given).
+Search fields come in two types, referred to as
+.Dq must match
+and
+.Dq might match ;
+the former type is a subset of the latter (every
+.Dq must match
+field is also a
+.Dq might match
+field).
+.Pp
+When deciding if a vCard should be considered for formatting and output,
+.Nm
+will consult the list of
+.Dq might match
+fields (that is, all search fields).
+If every search term (not case-sensitive) is contained within the value of at
+least one search field of a particular vCard, that vCard is considered for
+formatting.
+During formatting, if one of the
+.Dq must match
+fields is requested (through a formatting directive), the value of that field
+is again checked against the search terms.
+If none of the search terms is contained within the value of the field, the
+field is ignored (it is treated as if it were not present in the vCard to begin
+with).
+.Pp
+As an example showing the utility of
+.Dq must match
+fields, consider the following vCard:
+.Bd -literal -offset indent
+BEGIN:VCARD
+VERSION:3.0
+FN:John Smith
+EMAIL;TYPE=HOME:johnsmith@example.com
+EMAIL;TYPE=WORK:jsmith123@example.com
+END:VCARD
+.Ed
+.Pp
+Suppose that we use only
+.Sy EMAIL
+as a
+.Dq ( might match )
+search field, and use the default output format of
+.Sy %n <%e> .
+In this case, if we search using the single term
+.Dq john ,
+the output will be
+.Bd -literal -offset indent
+John Smith <johnsmith@example.com>
+John Smith <jsmith123@example.com>
+.Ed
+.Pp
+This output may be confusing: why were both emails printed, even though only
+one contained the substring
+.Dq john ?
+The reason is that a
+.Dq might match
+search field is only used to filter entire vCards.
+Since the substring
+.Dq john
+appeared in
+.Em at least one
+of the email fields in the vCard above, it was sent to the formatter for output.
+The formatter, in turn, output as much information as possible from the vCard,
+including the work email address
+.Dq jsmith123@example.com .
+.Pp
+If we only want to consider the emails matching our search terms, instead of
+all emails in a vCard where at least one matches, we need to make email a
+.Dq must match
+field.
+This can be done by passing
+.Sy EMAIL!
+to the
+.Fl s
+option instead of just
+.Sy EMAIL .
+If we do this, we will obtain only the output
+.Bd -literal -offset indent
+John Smith <johnsmith@example.com>
+.Ed
+.Pp
+Note that this same observation applies even if we only use the format string
+.Dq %e ;
+using only a
+.Dq might match
+field, both emails will still be output, for the same reason as above.
+Thus, using a
+.Dq must match
+field allows
+.Nm
+to be used as an autocompletion source for email addresses.
 .Sh EXAMPLES
 .Bl -tag -width 6n
 .It Nm Fl a Fl i Ar contacts.vcf Ar john smith
@@ -146,4 +258,13 @@ having a non-empty address (vCard field
 .Sy ADR )
 in the format
 .Sy NAME,ADDRESS .
+.It Nm Fl d Ar a=ADR Fl f Ar '%+n,%+a' Ar jane doe
+The same as the example above, but quote the name and address output fields
+according to CSV quoting rules (surround using double quotes, escape double
+quotes with two double quotes in a row).
+.It Nm Fl i Ar contacts.vcf Fl s Ar 'EMAIL!' Fl f '%e' john
+Print all emails from the vCard file
+.Ar contacts.vcf
+that contain the (case-insensitive) substring
+.Dq john .
 .El

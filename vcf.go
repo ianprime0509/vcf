@@ -62,8 +62,13 @@ func (formatField) Set(arg string) error {
 	return nil
 }
 
-// searchFields is a list of vCard fields to search for the user's search terms.
-var searchFields = []string{"FN"}
+// searchFields is a list of (optional) vCard fields to search for the user's
+// search terms.
+var searchFields = []string{}
+
+// mustMatch is a set of vCard fields that must match the user's search terms
+// in order for the field to be printed as a result.
+var mustMatch = map[string]bool{}
 
 // searchField is a Value allowing search fields to be added via command-line
 // options.
@@ -75,6 +80,13 @@ func (searchField) String() string {
 
 func (searchField) Set(arg string) error {
 	for _, field := range strings.Split(arg, ",") {
+		if len(field) == 0 {
+			return errors.New("search fields cannot be empty")
+		}
+		if field[len(field)-1] == '!' {
+			field = field[:len(field)-1]
+			mustMatch[field] = true
+		}
 		searchFields = append(searchFields, field)
 	}
 	return nil
@@ -131,7 +143,7 @@ func run(w io.Writer, r io.Reader, search []string) error {
 	card, err := p.Next()
 	for err == nil {
 		if matchesSearch(card, search) {
-			err := formatCard(w, card)
+			err := formatCard(w, card, search)
 			if err != nil {
 				return err
 			}
@@ -145,18 +157,20 @@ func run(w io.Writer, r io.Reader, search []string) error {
 	return nil
 }
 
-// matchesSearch returns whether the given vCard matches the given search terms.
+// matchesSearch returns whether the given vCard matches the given
+// (case-insensitive) search terms. As a special case, if no search terms are
+// given, the result is always true.
 func matchesSearch(card *vcard.Card, search []string) bool {
+	if len(search) == 0 {
+		return true
+	}
 	for _, term := range search {
 		term = strings.ToUpper(term)
 		for _, field := range searchFields {
 			props := card.Get(field)
 			for _, prop := range props {
-				for _, value := range prop.Values() {
-					value = strings.ToUpper(value)
-					if strings.Contains(value, term) {
-						goto nextTerm
-					}
+				if propMatchesTerm(prop, term) {
+					goto nextTerm
 				}
 			}
 		}
@@ -167,10 +181,39 @@ func matchesSearch(card *vcard.Card, search []string) bool {
 	return true
 }
 
+// propMatchesSearch returns whether the given vCard property matches at least
+// one of the given (case-insensitive) search terms. As a special case, if no
+// search terms are given, the result is always true.
+func propMatchesSearch(prop vcard.Property, search []string) bool {
+	if len(search) == 0 {
+		return true
+	}
+	for _, term := range search {
+		term = strings.ToUpper(term)
+		if propMatchesTerm(prop, term) {
+			return true
+		}
+	}
+	return false
+}
+
+// propMatchesTerm returns whether the given vCard property matches the given
+// (case-sensitive) search term.
+func propMatchesTerm(prop vcard.Property, term string) bool {
+	for _, value := range prop.Values() {
+		value = strings.ToUpper(value)
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
+}
+
 // formatCard formats the given vCard according to the format string specified
 // in the command-line arguments, also taking into account other options such
-// as "-a".
-func formatCard(w io.Writer, card *vcard.Card) error {
+// as "-a". The search query is also provided, in case any properties are
+// marked as "must match".
+func formatCard(w io.Writer, card *vcard.Card, search []string) error {
 	// In order to handle cards that may have more than one of each field,
 	// we need to maintain several strings, which will become the lines of
 	// the output. Every time we get a field repeated n times, we need to
@@ -211,6 +254,9 @@ func formatCard(w io.Writer, card *vcard.Card) error {
 			}
 
 			props := card.Get(field)
+			if mustMatch[field] {
+				props = filterProps(props, search)
+			}
 			if len(props) == 0 && !*all {
 				// Break out of the function early without
 				// printing anything for this card.
@@ -234,6 +280,22 @@ func formatCard(w io.Writer, card *vcard.Card) error {
 		fmt.Fprintln(w, b)
 	}
 	return nil
+}
+
+// filterProps returns only those properties from the given slice that match
+// one or more of the given search terms. As a special case, if no search terms
+// are given, all properties are returned.
+func filterProps(props []vcard.Property, search []string) []vcard.Property {
+	if len(search) == 0 {
+		return props
+	}
+	filtered := make([]vcard.Property, 0, len(props))
+	for _, prop := range props {
+		if propMatchesSearch(prop, search) {
+			filtered = append(filtered, prop)
+		}
+	}
+	return filtered
 }
 
 // unescape transforms escaped characters in the given string to their unescaped
@@ -272,7 +334,6 @@ func appendProps(bufs *[]*bytes.Buffer, props []vcard.Property, mod rune) {
 				bs := make([]byte, ob.Len())
 				copy(bs, ob.Bytes())
 				nb := bytes.NewBuffer(bs)
-				// TODO: figure out a better way to handle multiple values.
 				nb.WriteString(formatProp(prop, mod))
 				*bufs = append(*bufs, nb)
 			}
@@ -288,6 +349,7 @@ func appendProps(bufs *[]*bytes.Buffer, props []vcard.Property, mod rune) {
 // formatProp formats the given property, taking into account the given
 // formatting modifier.
 func formatProp(prop vcard.Property, mod rune) string {
+	// TODO: figure out a better way to handle multiple values.
 	base := strings.Join(prop.Values(), ",")
 	if mod == '+' {
 		return quoteCSV(base)
