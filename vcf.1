@@ -6,7 +6,7 @@
 .Nd search and format vCard data
 .Sh SYNOPSIS
 .Nm
-.Op Fl aS
+.Op Fl a
 .Op Fl d Ar rune=field , Ns ...
 .Op Fl f Ar format
 .Op Fl i Ar input
@@ -262,7 +262,7 @@ in the format
 The same as the example above, but quote the name and address output fields
 according to CSV quoting rules (surround using double quotes, escape double
 quotes with two double quotes in a row).
-.It Nm Fl i Ar contacts.vcf Fl s Ar 'EMAIL!' Fl f '%e' john
+.It Nm Fl i Ar contacts.vcf Fl s Ar 'EMAIL!' Fl f Ar '%e' john
 Print all emails from the vCard file
 .Ar contacts.vcf
 that contain the (case-insensitive) substring
