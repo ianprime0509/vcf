@@ -64,7 +64,7 @@ func (formatField) Set(arg string) error {
 
 // searchFields is a list of (optional) vCard fields to search for the user's
 // search terms.
-var searchFields = []string{}
+var searchFields = []string{"FN"}
 
 // mustMatch is a set of vCard fields that must match the user's search terms
 // in order for the field to be printed as a result.
